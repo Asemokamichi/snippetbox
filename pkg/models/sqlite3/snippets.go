@@ -2,6 +2,7 @@ package sqlite3
 
 import (
 	"database/sql"
+	"time"
 
 	"golangify.com/snippetbox/pkg/models"
 )
@@ -10,15 +11,13 @@ type SnippetModel struct {
 	DB *sql.DB
 }
 
-// Разобарться по позже, вообще непонятно что происходит
-// Глава 4.6
-func (s *SnippetModel) Insert(title, content, expires string) (int, error) {
+func (s *SnippetModel) Insert(title, content string, expires time.Time) (int, error) {
 	query := `
 		INSERT INTO snippets (title, content, created, expires) 
-		VALUES ($1, $2, TC_TIMESTAMP(), DATE_ADD(UTC_TIMESTAMP(), INTERVAL DAY = $3);
+		VALUES ($1, $2, $3, $4);
 	`
 
-	result, err := s.DB.Exec(query, title, content, expires)
+	result, err := s.DB.Exec(query, title, content, expires, expires.Add(time.Hour*6))
 	if err != nil {
 		return 0, err
 	}
@@ -35,11 +34,11 @@ func (s *SnippetModel) Get(id int) (*models.Snippet, error) {
 	query := `
 		SELECT id, title, content, created, expires 
 		FROM snippets
-		WHERE expires > UTC_TIMESTAMP() AND id = $1
+		WHERE expires > $1 AND id = $2
 	`
 
 	snp := &models.Snippet{}
-	if err := s.DB.QueryRow(query, id).Scan(&snp.ID, &snp.Title, &snp.Content, &snp.Expires); err != nil {
+	if err := s.DB.QueryRow(query, time.Now, id).Scan(&snp.ID, &snp.Title, &snp.Content, &snp.Expires); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, models.ErrNoRecord
 		}
@@ -49,6 +48,31 @@ func (s *SnippetModel) Get(id int) (*models.Snippet, error) {
 	return snp, nil
 }
 
-func (s *SnippetModel) latest() ([]*models.Snippet, error) {
-	return nil, nil
+func (s *SnippetModel) Latest() ([]*models.Snippet, error) {
+	query := `
+		SELECT id, title, content, created, expires
+		FROM snippets
+		WHERE expires > $1
+		ORDER BY created DESC LIMIT 10
+	`
+
+	rows, err := s.DB.Query(query, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	snippets := []*models.Snippet{}
+	for rows.Next() {
+		sn := &models.Snippet{}
+		if err := rows.Scan(&sn.ID, &sn.Title, &sn.Content, &sn.Created, &sn.Expires); err != nil {
+			return nil, err
+		}
+		snippets = append(snippets, sn)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return snippets, nil
 }

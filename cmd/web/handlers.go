@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
-	"html/template"
 	"net/http"
 	"strconv"
+	"time"
 
 	"golangify.com/snippetbox/pkg/models"
 )
@@ -14,22 +14,33 @@ func (app *application) home(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	files := []string{
-		"./ui/html/base.tmpl",
-		"./ui/html/partials/nav.tmpl",
-		"./ui/html/pages/home.tmpl",
-	}
 
-	ts, err := template.ParseFiles(files...)
+	s, err := app.snippets.Latest()
+	fmt.Println(s, err)
 	if err != nil {
 		app.serveError(w, err)
 		return
 	}
 
-	if err := ts.ExecuteTemplate(w, "base", nil); err != nil {
-		app.serveError(w, err)
-		return
+	for _, snippet := range s {
+		fmt.Fprintf(w, "%v\n", snippet)
 	}
+	// files := []string{
+	// 	"./ui/html/base.tmpl",
+	// 	"./ui/html/partials/nav.tmpl",
+	// 	"./ui/html/pages/home.tmpl",
+	// }
+
+	// ts, err := template.ParseFiles(files...)
+	// if err != nil {
+	// 	app.serveError(w, err)
+	// 	return
+	// }
+
+	// if err := ts.ExecuteTemplate(w, "base", nil); err != nil {
+	// 	app.serveError(w, err)
+	// 	return
+	// }
 }
 
 func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +69,7 @@ func (app *application) createSnippet(w http.ResponseWriter, r *http.Request) {
 
 	title := "O snail"
 	content := "O snail\nClimb Mount Fuji,\nBut slowly, slowly!\n\n Kobayashi"
-	expires := "7"
+	expires := time.Now()
 
 	id, err := app.snippets.Insert(title, content, expires)
 	if err != nil {
